@@ -79,6 +79,8 @@ data Context = Context
     -- ^ Safety condition 2.
   , ctxVarsInUseBeforeMem :: M.Map MName Names
     -- ^ Safety condition 5.
+  , ctxCurSnapshot :: Current
+    -- ^ Keep a snapshot (used in 'tryCoalesce' for Concat).
   }
   deriving (Show)
 
@@ -156,7 +158,7 @@ lookupCurrentVarMem :: LoreConstraints lore =>
                        VName -> FindM lore (Maybe VName)
 lookupCurrentVarMem var = do
         -- Current result...
-        mem_cur <- M.lookup var <$> gets curMemsCoalesced
+        mem_cur <- (M.lookup var . curMemsCoalesced) <$> asks ctxCurSnapshot
         -- ... or original result.
         --
         -- This is why we save the variables after creation, not the memory
@@ -226,6 +228,7 @@ coreCoalesceFunDef fundef var_to_mem mem_aliases var_aliases first_uses
                         , ctxVarExps = exps
                         , ctxAllocatedBlocksBeforeCreation = cond2
                         , ctxVarsInUseBeforeMem = cond5
+                        , ctxCurSnapshot = emptyCurrent
                         }
       m = unFindM $ lookInBody $ funDefBody fundef
       var_to_mem_res = curMemsCoalesced $ fst $ execRWS m context emptyCurrent
@@ -261,35 +264,57 @@ lookInStm :: LoreConstraints lore =>
 lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
   -- COALESCING-SPECIFIC HANDLING for Copy and Concat.
   case patvalelems of
-    [PatElem dst ExpMem.MemArray{}] ->
+    [PatElem dst ExpMem.MemArray{}] -> do
       -- We create a function and pass it around instead of just applying it to
       -- the memory of the MemBound.  We do this, since any source variables
       -- might have more actual variables with different index functions that
       -- also need to be fixed -- e.g. in the case of reshape, where both the
       -- reshaped array and the original array need to get their index functions
       -- updated.
-      case e of
-        -- Copy.
-        BasicOp (Update dest slice (Var src)) ->
-          let ixfun_slices =
-                  let slice' = map (primExpFromSubExp (IntType Int32) <$>) slice
-                  in [slice']
-              bindage = BindInPlace dest slice
-          in tryCoalesce dst ixfun_slices bindage src zeroOffset
+      --
+      -- We take a snapshot of the current state of the curCoalescedIntos state
+      -- field.  We need this feature to avoid having fewer coalescings just
+      -- because of the placement of the sources.  For example, for
+      --
+      --     let b = ...
+      --     let a = ...
+      --     let c = concat a b
+      --
+      -- the coalescing pass will first coalesce m_a into m_c, which will
+      -- succeed.  Then it will to coalesce m_b into m_c, which will (naively)
+      -- fail because of safety condition 3 arguing that m_c is now in use after
+      -- the creation of 'b' and before its use, since 'a' now uses m_c.
+      --
+      -- (Alternatively, we could do some more general index function analysis
+      -- to check for things that will never overlap in merged memory, but this
+      -- seems easier.)
+      cur_snapshot <- get
+      local (\ctx -> ctx { ctxCurSnapshot = cur_snapshot })
+        $ case e of
+            -- In-place update.
+            BasicOp (Update dest slice (Var src)) ->
+              let ixfun_slices =
+                      let slice' = map (primExpFromSubExp (IntType Int32) <$>) slice
+                      in [slice']
+                  bindage = BindInPlace dest slice
+              in tryCoalesce dst ixfun_slices bindage src zeroOffset
 
-        -- Concat.
-        BasicOp (Concat 0 src0 src0s _) -> do
-          let srcs = src0 : src0s
-          shapes <- mapM ((memSrcShape <$>) . lookupVarMem) srcs
-          let getOffsets offset_prev shape =
-                let se = head (shapeDims shape) -- Should work.
-                    len = primExpFromSubExp (IntType Int32) se
-                    offset_new = BinOpExp (Add Int32) offset_prev len
-                in offset_new
-              offsets = init (scanl getOffsets zeroOffset shapes)
-          zipWithM_ (tryCoalesce dst [] BindVar) srcs offsets
+            -- Copy.
+            BasicOp (Copy src) ->
+              tryCoalesce dst [] BindVar src zeroOffset
 
-        _ -> return ()
+            -- Concat.
+            BasicOp (Concat 0 src0 src0s _) -> do
+              let srcs = src0 : src0s
+              shapes <- mapM ((memSrcShape <$>) . lookupVarMem) srcs
+              let getOffsets offset_prev shape =
+                    let se = head (shapeDims shape) -- Should work.
+                        len = primExpFromSubExp (IntType Int32) se
+                        offset_new = BinOpExp (Add Int32) offset_prev len
+                    in offset_new
+                  offsets = init (scanl getOffsets zeroOffset shapes)
+              zipWithM_ (tryCoalesce dst [] BindVar) srcs offsets
+            _ -> return ()
     _ -> return ()
 
 
@@ -316,9 +341,10 @@ tryCoalesce dst ixfun_slices bindage src offset = do
 
   -- From earlier optimistic coalescings.  Remember to also get the coalescings
   -- from the actual variables in e.g. loops.
-  coalesced_intos <- gets curCoalescedIntos
+  coalesced_intos <- curCoalescedIntos <$> asks ctxCurSnapshot
   let (src0s, offset0s, ixfun_slice0ss) =
-        unzip3 $ S.toList $ S.unions $ map (`lookupEmptyable` coalesced_intos) (src : src's)
+        unzip3 $ S.toList $ S.unions
+        $ map (`lookupEmptyable` coalesced_intos) (src : src's)
 
   let srcs = src's ++ src0s
                 -- The same number of base offsets as in src's.
@@ -440,7 +466,7 @@ canBeCoalesced dst src ixfun = do
 
   let safe_all = safe2 && safe3 && safe4 && safe5 && safe_if
 
-      debug = safe_all `seq` do
+      debug = safe2 `seq` safe3 `seq` safe4 `seq` safe5 `seq` safe_if `seq` do
         putStrLn $ replicate 70 '~'
         putStrLn "canBeCoalesced:"
         putStrLn ("dst: " ++ pretty dst ++ ", src: " ++ pretty src)
