@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 -- | Transform a function based on a mapping from variable to memory and index
@@ -12,6 +14,7 @@ module Futhark.Optimise.MemoryBlockMerging.MemoryUpdater
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
 import Data.Maybe (mapMaybe, fromMaybe)
+import Control.Monad
 import Control.Monad.Reader
 
 import Futhark.Representation.AST
@@ -24,9 +27,13 @@ import Futhark.Optimise.MemoryBlockMerging.Types
 import Futhark.Optimise.MemoryBlockMerging.Miscellaneous
 
 
-newtype FindM lore a = FindM { unFindM :: Reader (VarMemMappings MemoryLoc) a }
+newtype Context = Context { ctxVarToMem :: VarMemMappings MemoryLoc
+                          }
+  deriving (Show)
+
+newtype FindM lore a = FindM { unFindM :: Reader Context a }
   deriving (Monad, Functor, Applicative,
-            MonadReader (VarMemMappings MemoryLoc))
+            MonadReader Context)
 
 type LoreConstraints lore = (ExplicitMemorish lore,
                              FullMap lore,
@@ -42,7 +49,9 @@ transformFromVarMemMappings :: VarMemMappings MemoryLoc ->
                                FunDef ExplicitMemory -> FunDef ExplicitMemory
 transformFromVarMemMappings var_to_mem fundef =
   let m = unFindM $ transformBody $ funDefBody fundef
-      body' = runReader m var_to_mem
+      ctx = Context { ctxVarToMem = var_to_mem
+                    }
+      body' = runReader m ctx
   in fundef { funDefBody = body' }
 
 transformBody :: LoreConstraints lore =>
@@ -57,14 +66,49 @@ transformKernelBody (KernelBody () bnds res) = do
   bnds' <- mapM transformStm $ stmsToList bnds
   return $ KernelBody () (stmsFromList bnds') res
 
+transformMemInfo :: ExpMem.MemInfo d u ExpMem.MemReturn -> MemoryLoc ->
+                    ExpMem.MemInfo d u ExpMem.MemReturn
+transformMemInfo meminfo memloc = case meminfo of
+  ExpMem.MemArray pt shape u (ExpMem.ReturnsInBlock _mem _extixfun) ->
+    let extixfun = ExpMem.existentialiseIxFun [] $ memLocIxFun memloc
+    in ExpMem.MemArray pt shape u
+       (ExpMem.ReturnsInBlock (memLocName memloc) extixfun)
+  _ -> meminfo
+
 transformStm :: LoreConstraints lore =>
                 Stm lore -> FindM lore (Stm lore)
 transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
   patvalelems' <- mapM transformPatValElem patvalelems
 
   e' <- fullMapExpM mapper mapper_kernel e
-  var_to_mem <- ask
+  var_to_mem <- asks ctxVarToMem
   e'' <- case e' of
+    If cond body_then body_else (IfAttr rets sort) -> do
+      let bodyVarMemLocs body =
+            map (flip M.lookup var_to_mem <=< fromVar)
+            $ drop (length patctxelems) $ bodyResult body
+
+      let ms_then = bodyVarMemLocs body_then
+      let ms_else = bodyVarMemLocs body_else
+
+      let rets_new =
+            if ms_then == ms_else
+            then zipWith (\r m -> case m of
+                                    Nothing -> r
+                                    Just m' ->
+                                      transformMemInfo r m'
+                         ) rets ms_then
+            else error "FIXME: Niels doesn't know how to handle this (if it can even occur)"
+
+      let debug = putStrLns [ replicate 70 '~'
+                            , "ifattr rets: " ++ show rets
+                            , "ifattr rets_new: " ++ show rets_new
+                            , "ifattr ms_then: " ++ show ms_then
+                            , "ifattr ms_else: " ++ show ms_else
+                            , replicate 70 '~'
+                            ]
+      withDebug debug $ return $ If cond body_then body_else (IfAttr rets_new sort)
+
     DoLoop mergectxparams mergevalparams loopform body -> do
       -- More special loop handling because of its extra
       -- pattern-like info.
@@ -125,7 +169,7 @@ transformMergeCtxParam :: LoreConstraints lore =>
                           (FParam ExplicitMemory, SubExp)
                        -> FindM lore (FParam ExplicitMemory, SubExp)
 transformMergeCtxParam mergevalparams (param@(Param ctxmem ExpMem.MemMem{}), mem) = do
-  var_to_mem <- ask
+  var_to_mem <- asks ctxVarToMem
 
   let usesCtxMem (Param _ (ExpMem.MemArray _ _ _ (ExpMem.ArrayIn pmem _))) = ctxmem == pmem
       usesCtxMem _ = False
@@ -183,7 +227,7 @@ transformForLoopVar (Param x membound, array) = do
 -- Find a new memory block and index function if they exist.
 newMemBound :: ExpMem.MemBound u -> VName -> FindM lore (ExpMem.MemBound u)
 newMemBound membound var = do
-  var_to_mem <- ask
+  var_to_mem <- asks ctxVarToMem
 
   let membound'
         | ExpMem.MemArray pt shape u _ <- membound
