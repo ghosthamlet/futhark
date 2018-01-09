@@ -199,12 +199,11 @@ recordOptimisticCoalescing src offset ixfun_slices dst dst_memloc bindage = do
 
   modifyCurMemsCoalesced $ M.insert src dst_memloc
 
-  let debug = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "recordOptimisticCoalescing"
-        putStrLn ("dst: " ++ pretty dst ++ "; src: " ++ pretty src)
-        putStrLn ("slices: " ++ show ixfun_slices)
-        putStrLn $ replicate 70 '~'
+  let debug =
+        putBlock [ "recordOptimisticCoalescing"
+                 , "dst: " ++ pretty dst ++ "; src: " ++ pretty src
+                 , "slices: " ++ show ixfun_slices
+                 ]
   doDebug debug
 
 coreCoalesceFunDef :: FunDef ExplicitMemory -> VarMemMappings MemorySrc
@@ -386,14 +385,13 @@ tryCoalesce dst ixfun_slices bindage src offset = do
                       ||
                       (offset_local /= zeroOffset))
 
-            debug = do
-              putStrLn $ replicate 70 '~'
-              putStrLn "currentlyDisabled:"
-              putStrLn ("var: " ++ pretty src_local)
-              putStrLn ("dst mem: " ++ show mem_dst)
-              putStrLn ("existentials: " ++ show existentials)
-              putStrLn ("ixfun_slices: " ++ show ixfun_slices_local)
-              putStrLn $ replicate 70 '~'
+            debug =
+              putBlock [ "currentlyDisabled:"
+                       , "var: " ++ pretty src_local
+                       , "dst mem: " ++ show mem_dst
+                       , "existentials: " ++ show existentials
+                       , "ixfun_slices: " ++ show ixfun_slices_local
+                       ]
         withDebug debug $ return res
 
   safe0 <- (not . or) <$> zipWithM3 currentlyDisabled srcs offsets ixfun_slicess
@@ -433,22 +431,21 @@ tryCoalesce dst ixfun_slices bindage src offset = do
           src_local offset_local ixfun_slices_local
           dst dst_memloc bindage
 
-  let debug = safe0 `seq` safe1 `seq` ixfun_slices `seq` coalesced_intos `seq` do
-        putStrLn $ replicate 70 '~'
-        putStrLn ("tryCoalesce: src " ++ pretty src ++ ", dst " ++ pretty dst)
-        putStrLn ("actual vars for src " ++ pretty src ++ ": "
-                  ++ prettySet (S.fromList src's))
-        putStrLn ("safe0: " ++ show safe0)
-        putStrLn ("safe1: " ++ show safe1)
-        putStrLn ("input slices: " ++ show ixfun_slices)
-        putStrLn ("coalesced-intos full: " ++ show coalesced_intos)
-        putStrLn ("coalesced-into vars for " ++ pretty src ++ ": "
-                  ++ prettySet (S.fromList src0s))
-        putStrLn ("all srcs for " ++ pretty src ++ ": " ++ prettySet (S.fromList srcs))
-        putStrLn ("all slices for " ++ pretty src ++ ": " ++ show ixfun_slicess)
-        putStrLn ("all offsets for " ++ pretty src ++ ": " ++ show offsets)
-        putStrLn ("all ixfuns for " ++ pretty src ++ ":\n" ++ L.intercalate "\n" (map show ixfuns'))
-        putStrLn $ replicate 70 '~'
+  let debug = safe0 `seq` safe1 `seq` ixfun_slices `seq` coalesced_intos `seq`
+        putBlock [ "tryCoalesce: src " ++ pretty src ++ ", dst " ++ pretty dst
+                 , "actual vars for src " ++ pretty src ++ ": "
+                   ++ prettySet (S.fromList src's)
+                 , "safe0: " ++ show safe0
+                 , "safe1: " ++ show safe1
+                 , "input slices: " ++ show ixfun_slices
+                 , "coalesced-intos full: " ++ show coalesced_intos
+                 , "coalesced-into vars for " ++ pretty src ++ ": "
+                   ++ prettySet (S.fromList src0s)
+                 , "all srcs for " ++ pretty src ++ ": " ++ prettySet (S.fromList srcs)
+                 , "all slices for " ++ pretty src ++ ": " ++ show ixfun_slicess
+                 , "all offsets for " ++ pretty src ++ ": " ++ show offsets
+                 , "all ixfuns for " ++ pretty src ++ ":\n" ++ L.intercalate "\n" (map show ixfuns')
+                 ]
   withDebug debug $ return ()
 
 canBeCoalesced :: LoreConstraints lore =>
@@ -466,17 +463,16 @@ canBeCoalesced dst src ixfun = do
 
   let safe_all = safe2 && safe3 && safe4 && safe5 && safe_if
 
-      debug = safe2 `seq` safe3 `seq` safe4 `seq` safe5 `seq` safe_if `seq` do
-        putStrLn $ replicate 70 '~'
-        putStrLn "canBeCoalesced:"
-        putStrLn ("dst: " ++ pretty dst ++ ", src: " ++ pretty src)
-        putStrLn ("mem_dst: " ++ show mem_dst)
-        putStrLn ("mem_src: " ++ show mem_src)
-        putStrLn ("safe (" ++ pretty src ++ "): " ++ L.intercalate ", "
-                  -- Safety condition 1 is true if canBeCoalesced is run.
-                  (map show [True, safe2, safe3, safe4, safe5])
-                  ++ "; safe If: " ++ show safe_if)
-        putStrLn $ replicate 70 '~'
+      debug = safe2 `seq` safe3 `seq` safe4 `seq` safe5 `seq` safe_if `seq`
+        putBlock [ "canBeCoalesced:"
+                 , "dst: " ++ pretty dst ++ ", src: " ++ pretty src
+                 , "mem_dst: " ++ show mem_dst
+                 , "mem_src: " ++ show mem_src
+                 , "safe (" ++ pretty src ++ "): " ++ L.intercalate ", "
+                   -- Safety condition 1 is true if canBeCoalesced is run.
+                   (map show [True, safe2, safe3, safe4, safe5])
+                   ++ "; safe If: " ++ show safe_if
+                 ]
   withDebug debug $ return safe_all
 
 -- Safety conditions for each statement with a Copy or Concat:
@@ -519,13 +515,12 @@ safetyCond1 dst mem_src = do
   last_uses <- lookupEmptyable (FromStm dst) <$> asks ctxLastUses
   let res = S.member (memSrcName mem_src) last_uses
 
-  let debug = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "safetyCond1:"
-        putStrLn ("dst: " ++ pretty dst)
-        putStrLn ("mem src: " ++ show mem_src)
-        putStrLn ("last uses in dst: " ++ prettySet last_uses)
-        putStrLn $ replicate 70 '~'
+  let debug =
+        putBlock [ "safetyCond1:"
+                 , "dst: " ++ pretty dst
+                 , "mem src: " ++ show mem_src
+                 , "last uses in dst: " ++ prettySet last_uses
+                 ]
   withDebug debug $ return res
 
 safetyCond2 :: MonadReader Context m =>
@@ -535,13 +530,12 @@ safetyCond2 src mem_dst = do
                        <$> asks ctxAllocatedBlocksBeforeCreation
   let res = S.member (memSrcName mem_dst) allocs_before_src
 
-  let debug = allocs_before_src `seq` do
-        putStrLn $ replicate 70 '~'
-        putStrLn "safetyCond2:"
-        putStrLn ("mem_dst: " ++ show mem_dst)
-        putStrLn ("src: " ++ pretty src)
-        putStrLn ("allocs before src: " ++ prettySet allocs_before_src)
-        putStrLn $ replicate 70 '~'
+  let debug = allocs_before_src `seq`
+        putBlock [ "safetyCond2:"
+                 , "mem_dst: " ++ show mem_dst
+                 , "src: " ++ pretty src
+                 , "allocs before src: " ++ prettySet allocs_before_src
+                 ]
   withDebug debug $ return res
 
 safetyCond3 :: LoreConstraints lore =>
@@ -557,15 +551,14 @@ safetyCond3 src dst mem_dst = do
         map fst
         $ filter (\(_var, mems) -> memSrcName mem_dst `S.member` mems)
         $ zip uses_after_src_vars uses_after_src
-      debug = uses_after_src `seq` do
-        putStrLn $ replicate 70 '~'
-        putStrLn "safetyCond3:"
-        putStrLn ("mem_dst: " ++ show mem_dst)
-        putStrLn ("src: " ++ pretty src)
-        putStrLn ("uses after src vars: " ++ prettyList uses_after_src_vars)
-        putStrLn ("uses after src: " ++ prettySet (S.unions uses_after_src))
-        putStrLn ("vars causing mem use: " ++ prettyList dbg_vars_causing_mem_use)
-        putStrLn $ replicate 70 '~'
+      debug = uses_after_src `seq`
+        putBlock [ "safetyCond3:"
+                 , "mem_dst: " ++ show mem_dst
+                 , "src: " ++ pretty src
+                 , "uses after src vars: " ++ prettyList uses_after_src_vars
+                 , "uses after src: " ++ prettySet (S.unions uses_after_src)
+                 , "vars causing mem use: " ++ prettyList dbg_vars_causing_mem_use
+                 ]
   withDebug debug $ return res
 
 safetyCond4 :: MonadReader Context m =>
@@ -587,12 +580,11 @@ safetyCond4 src = do
   src_aliases <- lookupEmptyable src <$> asks ctxVarAliases
   let res = if_handling || reshape_handling || S.null src_aliases
 
-  let debug = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "safetyCond4:"
-        putStrLn ("src: " ++ pretty src)
-        putStrLn ("src aliases: " ++ prettySet src_aliases)
-        putStrLn $ replicate 70 '~'
+  let debug =
+        putBlock [ "safetyCond4:"
+                 , "src: " ++ pretty src
+                 , "src aliases: " ++ prettySet src_aliases
+                 ]
   withDebug debug $ return res
 
 safetyCond5 :: MonadReader Context m =>
@@ -603,15 +595,14 @@ safetyCond5 mem_src ixfun = do
   let used_vars = freeIn ixfun
       res = all (`S.member` in_use_before_mem_src) $ S.toList used_vars
 
-  let debug = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "safetyCond5:"
-        putStrLn ("mem_src: " ++ show mem_src)
-        putStrLn ("ixfun: " ++ show ixfun)
-        putStrLn ("in use before mem_src: " ++ prettySet in_use_before_mem_src)
-        putStrLn ("used vars: " ++ prettySet used_vars)
-        putStrLn ("remaining vars: " ++ prettySet (used_vars `S.difference` in_use_before_mem_src))
-        putStrLn $ replicate 70 '~'
+  let debug =
+        putBlock [ "safetyCond5:"
+                 , "mem_src: " ++ show mem_src
+                 , "ixfun: " ++ show ixfun
+                 , "in use before mem_src: " ++ prettySet in_use_before_mem_src
+                 , "used vars: " ++ prettySet used_vars
+                 , "remaining vars: " ++ prettySet (used_vars `S.difference` in_use_before_mem_src)
+                 ]
   withDebug debug $ return res
 
 safetyIf :: LoreConstraints lore =>
@@ -698,19 +689,18 @@ safetyIf src dst = do
   -- The full result.
   let res = res_general && res_current
 
-  let debug = res `seq` do
-        putStrLn $ replicate 70 '~'
-        putStrLn "safeIf:"
-        putStrLn ("src: " ++ pretty src)
-        putStrLn ("actual_srcs: " ++ prettySet (S.fromList actual_srcs))
-        putStrLn ("reverse actual_srcs: " ++ prettySet (S.fromList reverse_actual_srcs))
-        putStrLn ("outer: " ++ show outer)
-        putStrLn ("if branch results from outer: "
-                  ++ prettySet if_branch_results_from_outer)
-        putStrLn ("at least one creation inside: "
-                  ++ show at_least_one_creation_inside)
-        putStrLn ("if handling: " ++ show if_handling
-                  ++ " (is in if: " ++ show is_in_if ++ ")")
-        putStrLn ("res safe: " ++ show res)
-        putStrLn $ replicate 70 '~'
+  let debug = res `seq`
+        putBlock [ "safeIf:"
+                 , "src: " ++ pretty src
+                 , "actual_srcs: " ++ prettySet (S.fromList actual_srcs)
+                 , "reverse actual_srcs: " ++ prettySet (S.fromList reverse_actual_srcs)
+                 , "outer: " ++ show outer
+                 , "if branch results from outer: "
+                   ++ prettySet if_branch_results_from_outer
+                 , "at least one creation inside: "
+                   ++ show at_least_one_creation_inside
+                 , "if handling: " ++ show if_handling
+                   ++ " (is in if: " ++ show is_in_if ++ ")"
+                 , "res safe: " ++ show res
+                 ]
   withDebug debug $ return res

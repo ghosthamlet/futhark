@@ -100,13 +100,11 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
                          ) rets ms_then
             else error "FIXME: Niels doesn't know how to handle this (if it can even occur)"
 
-      let debug = putStrLns [ replicate 70 '~'
-                            , "ifattr rets: " ++ show rets
-                            , "ifattr rets_new: " ++ show rets_new
-                            , "ifattr ms_then: " ++ show ms_then
-                            , "ifattr ms_else: " ++ show ms_else
-                            , replicate 70 '~'
-                            ]
+      let debug = putBlock [ "ifattr rets: " ++ show rets
+                           , "ifattr rets_new: " ++ show rets_new
+                           , "ifattr ms_then: " ++ show ms_then
+                           , "ifattr ms_else: " ++ show ms_else
+                           ]
       withDebug debug $ return $ If cond body_then body_else (IfAttr rets_new sort)
 
     DoLoop mergectxparams mergevalparams loopform body -> do

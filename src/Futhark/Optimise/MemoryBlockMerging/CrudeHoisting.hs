@@ -49,11 +49,10 @@ hoistInFunDef fundef findHoistees =
               (Just (funDefParams fundef)) findHoistees (funDefBody fundef)
       fundef' = fundef { funDefBody = body' }
 
-      debug = fundef' `seq` do
-        putStrLn $ replicate 70 '='
-        putStrLn "Result of hoistInFunDef:"
-        putStrLn $ pretty fundef'
-        putStrLn $ replicate 70 '='
+      debug = fundef' `seq`
+        putBlock [ "Result of hoistInFunDef:"
+                 ,  pretty fundef
+                 ]
   in withDebug debug fundef'
 
 lookupPrimBinding :: VName -> State BindingMap PrimBinding
@@ -137,11 +136,10 @@ bodyBindingMap stms =
 
               bmap = [vars_binding, sizes_binding, params_binding]
 
-              debug = do
-                putStrLn $ replicate 70 '~'
-                putStrLn "createBindingStmt:"
-                print param_vars
-                putStrLn $ replicate 70 '~'
+              debug =
+                putBlock [ "createBindingStmt:"
+                         , show param_vars
+                         ]
           in withDebug debug bmap
 
         shapeSizes (PatElem _ (ExpMem.MemArray _ shape _ _)) =
@@ -172,12 +170,11 @@ hoistInBody scope_new bindingmap_old params findHoistees body =
       bnds' = fmap (hoistRecursivelyStm bindingmap' findHoistees) bnds
       body' = Body () bnds' res
 
-      debug = hoistees `seq` do
-        putStrLn $ replicate 70 '~'
-        putStrLn "Hoistees found in body:"
-        print bindingmap
-        forM_ hoistees $ \h -> putStrLn ("hoistee: " ++ pretty h)
-        putStrLn $ replicate 70 '~'
+      debug = hoistees `seq`
+        putBlock [ "Hoistees found in body:"
+                 , show bindingmap
+                 , L.intercalate "\n" $ map (\h -> "hoistee: " ++ pretty h) hoistees
+                 ]
 
   in withDebug debug body'
 
@@ -207,11 +204,10 @@ hoist bindingmap_cur body hoistee =
 
       body' = runState (moveLetUpwards hoistee body) bindingmap
 
-      debug = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "CrudeHoisting hoist:"
-        putStrLn ("Name: " ++ show hoistee)
-        putStrLn $ replicate 70 '~'
+      debug =
+        putBlock [ "CrudeHoisting hoist:"
+                 , "Name: " ++ show hoistee
+                 ]
 
   in withDebug debug body'
 
@@ -219,11 +215,10 @@ hoist bindingmap_cur body hoistee =
 moveLetUpwards :: VName -> Body ExplicitMemory
                -> State BindingMap (Body ExplicitMemory)
 moveLetUpwards letname body = do
-  let debug0 = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "moveLetUpwards 0:"
-        print letname
-        putStrLn $ replicate 70 '~'
+  let debug0 =
+        putBlock [ "moveLetUpwards 0:"
+                 , show letname
+                 ]
 
   PrimBinding deps consumed letorig <- withDebug debug0 $ lookupPrimBinding letname
 
@@ -245,17 +240,13 @@ moveLetUpwards letname body = do
         DoLoop{} -> return body
         Op ExpMem.Inner{} -> return body
         _ -> do
-          let debug1 = do
-                putStrLn $ replicate 70 '~'
-                putStrLn "moveLetUpwards 1:"
-                print letname
-                putStrLn $ prettySet deps'
-                putStrLn $ prettySet consumed
-                print line_cur
-                -- putStrLn $ replicate 70 '|'
-                -- putStrLn $ pretty body'
-                -- putStrLn $ replicate 70 '|'
-                putStrLn $ replicate 70 '~'
+          let debug1 =
+                putBlock [ "moveLetUpwards 1:"
+                         , show letname
+                         , prettySet deps
+                         , prettySet consumed
+                         , show line_cur
+                         ]
 
           -- Sort by how close they are to the beginning of the body.  The closest
           -- one should be the first one to hoist, so that the other ones can maybe
@@ -294,11 +285,10 @@ moveLetToLine stm_cur_name line_cur line_dest stms
                                                (FromLine (l + 1) e))
                                      else t)
 
-  let debug = do
-        putStrLn $ replicate 70 '~'
-        putStrLn "moveLetToLine:"
-        putStrLn $ pretty stm_cur_name
-        putStrLn $ replicate 70 '~'
+  let debug =
+        putBlock [ "moveLetToLine:"
+                 , pretty stm_cur_name
+                 ]
 
   r <- withDebug debug $ lookupPrimBinding stm_cur_name
   case r of

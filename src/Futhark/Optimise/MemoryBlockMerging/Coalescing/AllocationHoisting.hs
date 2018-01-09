@@ -69,13 +69,12 @@ findAllocHoistees body params =
           let vs = mapMaybe checkStm stms
               vs' = if null vs then Nothing else Just (xmem_alloc, concat vs)
 
-              debug = do
-                putStrLn $ replicate 70 '~'
-                putStrLn "usedByCopyOrConcat:"
-                putStrLn ("xmem_alloc: " ++ pretty xmem_alloc)
-                putStrLn ("vars: " ++ prettySet (S.fromList vs))
-                putStrLn ("vars': " ++ show vs')
-                putStrLn $ replicate 70 '~'
+              debug =
+                putBlock [ "usedByCopyOrConcat:"
+                         , "xmem_alloc: " ++ pretty xmem_alloc
+                         , "vars: " ++ prettySet (S.fromList vs)
+                         , "vars': " ++ show vs'
+                         ]
 
           in withDebug debug vs'
 
