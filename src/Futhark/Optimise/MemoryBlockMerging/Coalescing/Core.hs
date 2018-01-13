@@ -30,6 +30,7 @@ import Futhark.Optimise.MemoryBlockMerging.Coalescing.Exps
 import Futhark.Optimise.MemoryBlockMerging.Coalescing.SafetyCondition2
 import Futhark.Optimise.MemoryBlockMerging.Coalescing.SafetyCondition3
 import Futhark.Optimise.MemoryBlockMerging.Coalescing.SafetyCondition5
+import Futhark.Optimise.MemoryBlockMerging.Reuse.AllocationSizes
 
 
 -- Some of these attributes could be split into separate Coalescing helper
@@ -231,7 +232,8 @@ coreCoalesceFunDef fundef var_to_mem mem_aliases var_aliases first_uses
                         }
       m = unFindM $ lookInBody $ funDefBody fundef
       var_to_mem_res = curMemsCoalesced $ fst $ execRWS m context emptyCurrent
-      fundef' = transformFromVarMemMappings var_to_mem_res fundef
+      sizes = memBlockSizesFunDef fundef
+      fundef' = transformFromVarMemMappings var_to_mem_res (M.map memSrcName var_to_mem) sizes sizes fundef
 
       debug = var_to_mem_res `seq` do
         putStrLn $ replicate 70 '='

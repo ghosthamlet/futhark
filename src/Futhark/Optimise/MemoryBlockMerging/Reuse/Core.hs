@@ -225,10 +225,11 @@ coreReuseFunDef fundef first_uses interferences potential_kernel_interferences v
         forM_ (funDefParams fundef) lookInFParam
         lookInBody $ funDefBody fundef
       (res, proglog) = execRWS m context emptyCurrent
-      fundef' = transformFromVarMemMappings (curVarToMemRes res) fundef
+      var_to_mem_res = curVarToMemRes res
+      fundef' = transformFromVarMemMappings var_to_mem_res (M.map memSrcName var_to_mem) sizes sizes fundef
+  let sizes' = memBlockSizesFunDef fundef'
   fundef'' <- transformFromVarMaxExpMappings (curVarToMaxExpRes res) fundef'
-  fundef''' <- transformFromKernelMaxSizedMappings var_to_pe var_to_mem actual_vars
-               (curKernelMaxSizedRes res) fundef''
+  fundef''' <- transformFromKernelMaxSizedMappings var_to_pe var_to_mem (M.map memLocName var_to_mem_res) sizes' actual_vars (curKernelMaxSizedRes res) fundef''
 
   let all_mems = S.fromList $ map memSrcName $ M.elems var_to_mem
       mems_changed = S.fromList $ map memSrcName
@@ -831,12 +832,12 @@ insertAndReplace replaces0 fundef =
 
 -- Change certain allocation sizes in a program.
 transformFromKernelMaxSizedMappings :: MonadFreshNames m =>
-  M.Map VName (PrimExp VName) -> VarMemMappings MemorySrc -> ActualVariables ->
-  M.Map MName (VName, ((VName, VName),
-                       (VName, VName))) ->
+  M.Map VName (PrimExp VName) -> VarMemMappings MemorySrc -> VarMemMappings MName ->
+  Sizes -> ActualVariables -> M.Map MName (VName, ((VName, VName),
+                                                   (VName, VName))) ->
   FunDef ExplicitMemory -> m (FunDef ExplicitMemory)
 transformFromKernelMaxSizedMappings
-  var_to_pe var_to_mem actual_vars mem_to_info fundef = do
+  var_to_pe var_to_mem var_to_mem_res sizes_orig actual_vars mem_to_info fundef = do
   (mem_to_size_var, arr_to_mem_ixfun) <-
     unzip <$> mapM (uncurry withNewMaxVar) (M.assocs mem_to_info)
   let mem_to_size_var' = M.fromList mem_to_size_var
@@ -845,7 +846,8 @@ transformFromKernelMaxSizedMappings
                       $ concat arr_to_mem_ixfun
 
       fundef' = insertAndReplace mem_to_size_var' fundef
-      fundef'' = transformFromVarMemMappings arr_to_memloc fundef'
+      sizes = memBlockSizesFunDef fundef'
+      fundef'' = transformFromVarMemMappings arr_to_memloc var_to_mem_res sizes sizes_orig fundef'
   return fundef''
 
   where withNewMaxVar :: MonadFreshNames m =>

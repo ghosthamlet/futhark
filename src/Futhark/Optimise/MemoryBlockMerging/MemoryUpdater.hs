@@ -25,10 +25,14 @@ import Futhark.Representation.Kernels.Kernel
 
 import Futhark.Optimise.MemoryBlockMerging.Types
 import Futhark.Optimise.MemoryBlockMerging.Miscellaneous
+import Futhark.Optimise.MemoryBlockMerging.Reuse.AllocationSizes (Sizes)
 
 
-newtype Context = Context { ctxVarToMem :: VarMemMappings MemoryLoc
-                          }
+data Context = Context { ctxVarToMem :: VarMemMappings MemoryLoc
+                       , ctxVarToMemOrig :: VarMemMappings MName
+                       , ctxAllocSizes :: Sizes
+                       , ctxAllocSizesOrig :: Sizes
+                       }
   deriving (Show)
 
 newtype FindM lore a = FindM { unFindM :: Reader Context a }
@@ -46,16 +50,77 @@ coerce = FindM . unFindM
 
 -- | Transform a function to use new memory blocks.
 transformFromVarMemMappings :: VarMemMappings MemoryLoc ->
+                               VarMemMappings MName ->
+                               Sizes -> Sizes ->
                                FunDef ExplicitMemory -> FunDef ExplicitMemory
-transformFromVarMemMappings var_to_mem fundef =
-  let m = unFindM $ transformBody $ funDefBody fundef
+transformFromVarMemMappings var_to_mem var_to_mem_orig alloc_sizes alloc_sizes_orig fundef =
+  let m = unFindM $ transformFunDefBody $ funDefBody fundef
       ctx = Context { ctxVarToMem = var_to_mem
+                    , ctxVarToMemOrig = var_to_mem_orig
+                    , ctxAllocSizes = alloc_sizes
+                    , ctxAllocSizesOrig = alloc_sizes_orig
                     }
       body' = runReader m ctx
   in fundef { funDefBody = body' }
 
+transformFunDefBody :: LoreConstraints lore =>
+                       Body lore -> FindM lore (Body lore)
+transformFunDefBody (Body () bnds res) = do
+  bnds' <- mapM transformStm $ stmsToList bnds
+  res' <- transformFunDefBodyResult res
+  return $ Body () (stmsFromList bnds') res'
+
+transformFunDefBodyResult :: LoreConstraints lore =>
+                             [SubExp] -> FindM lore [SubExp]
+transformFunDefBodyResult ses = do
+  var_to_mem <- asks ctxVarToMem
+  var_to_mem_orig <- asks ctxVarToMemOrig
+  mem_to_size <- asks ctxAllocSizes
+  mem_to_size_orig <- asks ctxAllocSizesOrig
+  
+  let check se
+        | Var v <- se
+        , Just orig <- M.lookup v var_to_mem_orig
+        , Just new <- memLocName <$> M.lookup v var_to_mem
+        = [(Var orig, (Var new, []))] ++ case (fst <$> M.lookup orig mem_to_size_orig,
+                                         fst <$> M.lookup new mem_to_size) of
+            (Just size_orig, Just size_new) ->
+              [(size_orig, (size_new, [Var orig]))]
+            _ -> []
+        | otherwise = []
+
+      check_size_only se
+        | Var v <- se
+        , Just orig <- fst <$> M.lookup v mem_to_size_orig
+        , Just new <- fst <$> M.lookup v mem_to_size
+        , orig /= new
+        = [(orig, (new, [Var v]))]
+        | otherwise = []
+      mem_orig_to_new1 = concatMap check ses
+      mem_orig_to_new2 = concatMap check_size_only ses
+      mem_orig_to_new = mem_orig_to_new1 ++ mem_orig_to_new2
+
+  let debug = do
+        putBlock [ "memory updater"
+                 , show var_to_mem
+                 , show var_to_mem_orig
+                 , show mem_to_size
+                 , show mem_to_size_orig
+                 , ""
+                 , show mem_orig_to_new1
+                 , show mem_orig_to_new2
+                 ]
+  withDebug debug $ return $ zipWith (
+    \se ts -> fromMaybe se (do
+                               (se', reqts) <- se `L.lookup` mem_orig_to_new
+                               if (reqts == take (length reqts) ts)
+                                 then return se'
+                                 else Nothing
+                           )
+    ) ses (L.tail $ L.tails ses)
+                             
 transformBody :: LoreConstraints lore =>
-                 Body lore -> FindM lore (Body lore)
+                       Body lore -> FindM lore (Body lore)
 transformBody (Body () bnds res) = do
   bnds' <- mapM transformStm $ stmsToList bnds
   return $ Body () (stmsFromList bnds') res
@@ -190,6 +255,8 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
           , mapOnKernelLambda = coerce . transformLambda
           , mapOnKernelLParam = transformLParam
           }
+
+
 
 -- Update the actual memory block referred to by a context (existential) memory
 -- block in a loop.
