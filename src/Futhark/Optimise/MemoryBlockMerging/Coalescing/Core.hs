@@ -109,7 +109,7 @@ ifExp :: MonadReader Context m =>
 ifExp var = do
   var_exp <- M.lookup var <$> asks ctxVarExps
   return $ case var_exp of
-    Just e@(Exp _ If{}) -> Just e
+    Just e@(Exp _ _ If{}) -> Just e
     _ -> Nothing
 
 isIfExp :: MonadReader Context m =>
@@ -123,7 +123,7 @@ isLoopExp :: MonadReader Context m =>
 isLoopExp var = do
   var_exp <- M.lookup var <$> asks ctxVarExps
   return $ case var_exp of
-    Just (Exp _ DoLoop{}) -> True
+    Just (Exp _ _ DoLoop{}) -> True
     _ -> False
 
 isReshapeExp :: MonadReader Context m =>
@@ -131,7 +131,7 @@ isReshapeExp :: MonadReader Context m =>
 isReshapeExp var = do
   var_exp <- M.lookup var <$> asks ctxVarExps
   return $ case var_exp of
-    Just (Exp _ (BasicOp Reshape{})) -> True
+    Just (Exp _ _ (BasicOp Reshape{})) -> True
     _ -> False
 
 -- Lookup the memory block statically associated with a variable.
@@ -418,13 +418,14 @@ tryCoalesce dst ixfun_slices bindage src offset = do
         $ \(src_local, offset_local, ixfun_slices_local, ixfun_local) -> do
         denotes_existential <- S.member src_local <$> asks ctxExistentials
         dst_memloc <-
-          if denotes_existential
-          then do
-            -- Only use the new index function.  Keep the existential memory
-            -- block.
-            mem_src <- lookupVarMem src_local
-            return $ MemoryLoc (memSrcName mem_src) ixfun_local
-          else
+          -- FIXME: Alright???
+          -- if denotes_existential
+          -- then do
+          --   -- Only use the new index function.  Keep the existential memory
+          --   -- block.
+          --   mem_src <- lookupVarMem src_local
+          --   return $ MemoryLoc (memSrcName mem_src) ixfun_local
+          -- else
             -- Use both the new memory block and the new index function.
             return $ MemoryLoc (memSrcName mem_dst) ixfun_local
         recordOptimisticCoalescing
@@ -612,7 +613,7 @@ safetyIf src dst = do
   -- not just is mem_dst not used after src and before dst, but neither is any
   -- other memory that will be merged after the coalescing.  Normally this is
   -- not an issue, since a coalescing means changing just one memory block --
-  -- but in the case of an If expression, each branches can have its own memory
+  -- but in the case of an If expression, each branch can have its own memory
   -- block, and both of them will try to be coalesced.  This extra test only
   -- applies to the actual memory blocks in the branches, not any existential
   -- memory block in the If, which in any case will be "used" in both branches.
@@ -636,9 +637,9 @@ safetyIf src dst = do
        at_least_one_creation_inside) = case outer of
         -- This is the if expression of which we are currently looking at one of
         -- its branch results.
-        [Exp npat (If _ body0 body1 _)] ->
+        [Exp nctx nthpat (If _ body0 body1 _)] ->
           let results_from_outer = S.fromList $ mapMaybe fromVar
-                                   $ concatMap bodyResult
+                                   $ concatMap (\body -> drop nctx $ bodyResult body)
                                    $ filter (null . bodyStms) [body0, body1]
 
               resultCreatedInside body se = fromMaybe False $ do
@@ -650,8 +651,8 @@ safetyIf src dst = do
                                       body_vars
                 return $ S.member res_mem body_first_uses
 
-              at_least = resultCreatedInside body0 (bodyResult body0 !! npat)
-                         || resultCreatedInside body1 (bodyResult body1 !! npat)
+              at_least = resultCreatedInside body0 (bodyResult body0 !! (nctx + nthpat))
+                         || resultCreatedInside body1 (bodyResult body1 !! (nctx + nthpat))
           in (True, results_from_outer, at_least)
         _ -> (False, S.empty, False)
 
@@ -701,6 +702,8 @@ safetyIf src dst = do
                    ++ show at_least_one_creation_inside
                  , "if handling: " ++ show if_handling
                    ++ " (is in if: " ++ show is_in_if ++ ")"
-                 , "res safe: " ++ show res
+                 , "res general: " ++ show res_general
+                 , "res current: " ++ show res_current
+                 , "res safe: " ++ show res                 
                  ]
   withDebug debug $ return res

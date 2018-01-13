@@ -69,7 +69,7 @@ transformKernelBody (KernelBody () bnds res) = do
 transformMemInfo :: ExpMem.MemInfo d u ExpMem.MemReturn -> MemoryLoc ->
                     ExpMem.MemInfo d u ExpMem.MemReturn
 transformMemInfo meminfo memloc = case meminfo of
-  ExpMem.MemArray pt shape u (ExpMem.ReturnsInBlock _mem _extixfun) ->
+  ExpMem.MemArray pt shape u _memreturn ->
     let extixfun = ExpMem.existentialiseIxFun [] $ memLocIxFun memloc
     in ExpMem.MemArray pt shape u
        (ExpMem.ReturnsInBlock (memLocName memloc) extixfun)
@@ -88,8 +88,39 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
             map (flip M.lookup var_to_mem <=< fromVar)
             $ drop (length patctxelems) $ bodyResult body
 
+          -- FIXME: Necessary?  Apparently so.
+          findBodyResMem i body_results =
+            let imem = patElemName (patctxelems L.!! i)
+                matching_var = mapMaybe (
+                  \(p, p_i) ->
+                    case patElemAttr p of
+                      ExpMem.MemArray _ _ _ (ExpMem.ArrayIn vmem _) ->
+                        if imem == vmem
+                        then Just p_i
+                        else Nothing
+                      _ ->
+                        Nothing
+                  ) (zip patvalelems [0..])
+            in do
+              j <- case matching_var of
+                [t] -> Just t
+                _ -> Nothing
+              body_res_var <- fromVar (body_results L.!! (length patctxelems + j))
+              MemoryLoc mem _ixfun <- M.lookup body_res_var var_to_mem
+              return mem
+
+          fixBodyExistentials body =
+            body { bodyResult =
+                   zipWith (\res i -> if i < length patctxelems
+                                      then maybe res Var $ findBodyResMem i (bodyResult body)
+                                      else res)
+                   (bodyResult body) [0..] }
+
       let ms_then = bodyVarMemLocs body_then
-      let ms_else = bodyVarMemLocs body_else
+          ms_else = bodyVarMemLocs body_else
+
+      let body_then' = fixBodyExistentials body_then
+          body_else' = fixBodyExistentials body_else
 
       let rets_new =
             if ms_then == ms_else
@@ -105,7 +136,7 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
                            , "ifattr ms_then: " ++ show ms_then
                            , "ifattr ms_else: " ++ show ms_else
                            ]
-      withDebug debug $ return $ If cond body_then body_else (IfAttr rets_new sort)
+      withDebug debug $ return $ If cond body_then' body_else' (IfAttr rets_new sort)
 
     DoLoop mergectxparams mergevalparams loopform body -> do
       -- More special loop handling because of its extra
