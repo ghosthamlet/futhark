@@ -293,12 +293,12 @@ lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
       local (\ctx -> ctx { ctxCurSnapshot = cur_snapshot })
         $ case e of
             -- In-place update.
-            BasicOp (Update dest slice (Var src)) ->
+            BasicOp (Update orig slice _) ->
               let ixfun_slices =
                       let slice' = map (primExpFromSubExp (IntType Int32) <$>) slice
                       in [slice']
-                  bindage = BindInPlace dest slice
-              in tryCoalesce dst ixfun_slices bindage src zeroOffset
+                  bindage = BindInPlace orig slice
+              in tryCoalesce dst ixfun_slices bindage orig zeroOffset
 
             -- Copy.
             BasicOp (Copy src) ->
