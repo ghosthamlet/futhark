@@ -311,7 +311,7 @@ lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
               let getOffsets offset_prev shape =
                     let se = head (shapeDims shape) -- Should work.
                         len = primExpFromSubExp (IntType Int32) se
-                        offset_new = BinOpExp (Add Int32) offset_prev len
+                        offset_new = offset_prev + len
                     in offset_new
                   offsets = init (scanl getOffsets zeroOffset shapes)
               zipWithM_ (tryCoalesce dst [] BindVar) srcs offsets
@@ -356,7 +356,7 @@ tryCoalesce dst ixfun_slices bindage src offset = do
                                     -- This should not be necessary, and maybe it
                                     -- is not (but there were some problems).
                                then zeroOffset
-                               else BinOpExp (Add Int32) offset o0) offset0s
+                               else offset + o0) offset0s
       ixfun_slicess = replicate (length src's) ixfun_slices
                 -- Same as above, kind of.
                 ++ map (\slices0 -> ixfun_slices ++ slices0) ixfun_slice0ss
@@ -419,15 +419,16 @@ tryCoalesce dst ixfun_slices bindage src offset = do
       forM_ (L.zip4 srcs offsets ixfun_slicess ixfuns')
         $ \(src_local, offset_local, ixfun_slices_local, ixfun_local) -> do
         denotes_existential <- S.member src_local <$> asks ctxExistentials
+        is_if <- isIfExp src_local
         dst_memloc <-
           -- FIXME: Alright???
-          -- if denotes_existential
-          -- then do
-          --   -- Only use the new index function.  Keep the existential memory
-          --   -- block.
-          --   mem_src <- lookupVarMem src_local
-          --   return $ MemoryLoc (memSrcName mem_src) ixfun_local
-          -- else
+          if denotes_existential && (not is_if)
+          then do
+            -- Only use the new index function.  Keep the existential memory
+            -- block.
+            mem_src <- lookupVarMem src_local
+            return $ MemoryLoc (memSrcName mem_src) ixfun_local
+          else
             -- Use both the new memory block and the new index function.
             return $ MemoryLoc (memSrcName mem_dst) ixfun_local
         recordOptimisticCoalescing

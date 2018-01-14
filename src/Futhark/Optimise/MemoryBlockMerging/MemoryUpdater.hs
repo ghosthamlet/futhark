@@ -194,7 +194,11 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
                                     Just m' ->
                                       transformMemInfo r m'
                          ) rets ms_then
-            else error "FIXME: Niels doesn't know how to handle this (if it can even occur)"
+            else rets
+
+            -- error ("FIXME: Niels doesn't know how to handle this (if it can even occur)\n" ++
+            --            "ms then: " ++ show ms_then ++ "\n" ++
+            --            "ms else: " ++ show ms_else)
 
       let debug = putBlock [ "ifattr rets: " ++ show rets
                            , "ifattr rets_new: " ++ show rets_new

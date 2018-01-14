@@ -13,6 +13,7 @@
 -- out the code below to restrict the fusion to see for yourself.
 -- ==
 -- input { [0, 3, 5, 7, 9] }
+
 -- output { [[0, 0, 0, 0, 0],
 --           [6, 6, 6, 6, 6],
 --           [10, 10, 10, 10, 10],
@@ -24,7 +25,6 @@
 --           [7, 7, 7, 7, 7],
 --           [9, 9, 9, 9, 9]]
 --        }
-
 -- structure cpu { Alloc 2 }
 -- structure gpu { Alloc 2 }
 
