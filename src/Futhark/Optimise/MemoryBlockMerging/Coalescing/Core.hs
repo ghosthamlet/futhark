@@ -290,15 +290,20 @@ lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
       -- to check for things that will never overlap in merged memory, but this
       -- seems easier.)
       cur_snapshot <- get
+      var_to_mem <- asks ctxVarToMem
       local (\ctx -> ctx { ctxCurSnapshot = cur_snapshot })
         $ case e of
             -- In-place update.
-            BasicOp (Update orig slice _) ->
-              let ixfun_slices =
-                      let slice' = map (primExpFromSubExp (IntType Int32) <$>) slice
-                      in [slice']
-                  bindage = BindInPlace orig slice
-              in tryCoalesce dst ixfun_slices bindage orig zeroOffset
+            BasicOp (Update orig slice (Var src)) ->
+              case M.lookup src var_to_mem of
+                Just _ ->
+                  let ixfun_slices =
+                        let slice' = map (primExpFromSubExp (IntType Int32) <$>) slice
+                        in [slice']
+                      bindage = BindInPlace orig slice
+                  in tryCoalesce dst ixfun_slices bindage src zeroOffset
+                Nothing ->
+                  return ()
 
             -- Copy.
             BasicOp (Copy src) ->
