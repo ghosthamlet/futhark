@@ -11,7 +11,7 @@ module Futhark.Optimise.MemoryBlockMerging.Liveness.LastUse
 
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Control.Monad
 import Control.Monad.RWS
 
@@ -203,7 +203,7 @@ lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
       _ -> return ()
 
   -- Then find the new memory blocks.
-  let e_free_vars = freeInExp e
+  let e_free_vars = freeInExp e `S.difference` (S.fromList $ freeExcludes e)
   e_mems <- S.unions <$> mapM varMems (S.toList e_free_vars)
 
   mem_aliases <- asks ctxMemAliases
@@ -264,6 +264,7 @@ lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
         putStrLn "LastUse lookInStm:"
         putStrLn ("stm: " ++ show patvalelems)
         putStrLn ("first uses outer: " ++ prettySet first_uses_outer)
+        putStrLn ("e free vars: " ++ prettySet e_free_vars)
         putStrLn ("e mems: " ++ prettySet e_mems)
         putStrLn ("cur optimistics: " ++ show cur_optis)
         putStrLn $ replicate 70 '~'
@@ -293,3 +294,20 @@ lookInRes (Var v) = do
       Nothing ->
         return ()
 lookInRes _ = return ()
+
+-- Some freeInExp results are too limiting and give us too conservative last use
+-- results (especially in the CPU pipeline).  We only care about a free variable
+-- if we *read* from it.  If it only exists for *writing*, then we don't have to
+-- look at its memory, since whatever is there we overwrite, and so there cannot
+-- be any last *use*.
+freeExcludes :: LoreConstraints lore =>
+                Exp lore -> [VName]
+freeExcludes e = case e of
+  DoLoop _ mergevalparams _ _ ->
+    -- FIXME: This can end up doing something wrong if the returned memory
+    -- block-associated mergevalparams do not come directly from a Scratch
+    -- creation.
+    mapMaybe fromVar $ map snd mergevalparams
+  BasicOp (Update orig _ _) ->
+    [orig]
+  _ -> []

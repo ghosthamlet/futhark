@@ -254,7 +254,7 @@ findLoopCorrespondingVar :: LoreConstraints lore =>
 findLoopCorrespondingVar ctx (Let (Pattern _patctxelems patvalelems) _
                          (DoLoop _ _ _ (Body _ stms res))) =
   M.fromList $ catMaybes $ zipWith findIt patvalelems res
-  where findIt (PatElem pat_v (ExpMem.MemArray _ _ _ (ExpMem.ArrayIn pat_mem _))) (Var _)
+  where findIt (PatElem pat_v (ExpMem.MemArray _ _ _ (ExpMem.ArrayIn pat_mem _))) (Var res_v)
           | not (null stms) = case L.last $ stmsToList stms of
               -- This is how the program looks after coalescing.
               Let (Pattern _ [PatElem _last_v
@@ -265,7 +265,7 @@ findLoopCorrespondingVar ctx (Let (Pattern _patctxelems patvalelems) _
                            if (memSrcName <$> M.lookup copy_v (ctxVarToMem ctx))
                               == Just last_stm_mem
                            then Just copy_v
-                           else Nothing
+                           else Just res_v
                      in res_v' >>= \t -> Just (t, (pat_v, slice_part))
                 -- Fix this mess.
                 else Nothing
