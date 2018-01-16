@@ -235,16 +235,14 @@ coreCoalesceFunDef fundef var_to_mem mem_aliases var_aliases first_uses
       sizes = memBlockSizesFunDef fundef
       fundef' = transformFromVarMemMappings var_to_mem_res (M.map memSrcName var_to_mem) sizes sizes fundef
 
-      debug = var_to_mem_res `seq` do
-        putStrLn $ replicate 70 '='
-        putStrLn "coreCoalesceFunDef coalescing results:"
-        forM_ (M.assocs var_to_mem_res) $ \(src, dstmem) ->
-          putStrLn ("Source " ++ pretty src ++ " coalesces into "
-                    ++ pretty (memLocName dstmem) ++ "; ixfun: "
-                    ++ show (memLocIxFun dstmem))
-        putStrLn $ pretty fundef'
-        putStrLn $ replicate 70 '='
-
+      debug = var_to_mem_res `seq`
+        putBlock [ "coreCoalesceFunDef coalescing results"
+                 , L.intercalate "\n" $ flip map (M.assocs var_to_mem_res) $ \(src, dstmem) ->
+                     "Source " ++ pretty src ++ " coalesces into "
+                     ++ pretty (memLocName dstmem) ++ "; ixfun: "
+                     ++ show (memLocIxFun dstmem)
+                 , pretty fundef'
+                 ]
   in withDebug debug fundef'
 
 lookInBody :: LoreConstraints lore =>
