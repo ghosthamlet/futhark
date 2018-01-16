@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #
-# Merge all the data gathered through running './gather-data.sh' or
-# './gather-data-coarse.sh'.
+# Merge all the data gathered through running './gather-data.sh'.
 #
 # The sole argument should be the directory containing the gathered data.  This
 # script will output a new file 'full.json' in the same directory.
@@ -11,17 +10,12 @@
 
 
 import sys
+import re
 import os
 import json
 import itertools
 import functools
 import numpy as np
-
-
-# SETTINGS
-
-# # Ignore datasets with runtimes below 1 millisecond.
-# runtime_limit_ignore = 1000.0
 
 
 # INPUT
@@ -87,16 +81,23 @@ def get_dataset_info_base(benchmarks, benchmark_name, dataset_name):
     raw = benchmarks[benchmark_name]['datasets'][dataset_name]
 
     average_runtime = np.mean(raw['runtimes'])
-    if True: #average_runtime > runtime_limit_ignore:
-        dataset_info_base = {
-            'average_runtime': average_runtime,
-            'total_cumulative_allocations': raw['total_allocated'],
-            'total_cumulative_frees': raw['total_freed'],
-            'peak_memory_usages': raw['peak_memory_usages']
-        }
-        return dataset_info_base
-    else:
-        return None
+    space_uses = re.findall(r'Peak memory usage for [^:]+: (\d+) bytes.', raw['stderr'])
+    peak_memory_usage = sum(map(int, space_uses))
+    dataset_info_base = {
+        'average_runtime': average_runtime,
+        'peak_memory_usage': peak_memory_usage,
+    }
+
+    # try:
+    #     dataset_info_base.update({
+    #         'total_cumulative_allocations': raw['total_allocated'],
+    #         'total_cumulative_frees': raw['total_freed'],
+    #         'peak_memory_usages': raw['peak_memory_usages']
+    #     })
+    # except KeyError:
+    #     pass
+
+    return dataset_info_base
 
 def cut_desc(s):
     if s[0] == '#':
@@ -128,8 +129,10 @@ for benchmark_name in benchmark_names:
             datasets[dataset_name_short] = dataset_info
 
     if len(datasets) > 0:
-        benchmark_info = {'compilation': compilation_info,
-                          'datasets': datasets}
+        benchmark_info = {
+            # 'compilation': compilation_info,
+            'datasets': datasets,
+        }
         benchmarks[benchmark_name] = benchmark_info
 
 with open(os.path.join(data_dir, 'full.json'), 'w') as f:

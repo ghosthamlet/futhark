@@ -15,4 +15,5 @@ benchmark_programs="$2"
 
 "$(dirname "$0")/gather-data.sh" "${result_dir_base}-gpu" futhark-opencl '' 1 "$benchmark_programs"
 
+# This will take a longer time.
 "$(dirname "$0")/gather-data.sh" "${result_dir_base}-cpu" futhark-c '' 1 "$benchmark_programs"

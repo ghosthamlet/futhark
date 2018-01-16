@@ -21,7 +21,7 @@ if ! [ "$result_dir" ]; then
     exit 1
 fi
 
-flags=''
+flags='--pass-option=--debugging'
 
 compiler="$2"
 if ! [ "$compiler" ]; then

@@ -11,10 +11,9 @@ if ! [ "$result_dir_base" ]; then
     exit 1
 fi
 
-cpu_benchmarks_file="$2"
-gpu_benchmarks_file="$3"
+benchmark_programs="$2"
 
-"$(dirname "$0")/gather-data.sh" "${result_dir_base}-gpu" futhark-opencl '' '' "$gpu_benchmarks_file"
+"$(dirname "$0")/gather-data.sh" "${result_dir_base}-gpu" futhark-opencl '' '' "$benchmark_programs"
 
-# This will take a longer time.
-"$(dirname "$0")/gather-data.sh" "${result_dir_base}-cpu" futhark-c '' '' "$cpu_benchmarks_file"
+# This will take a much longer time.
+"$(dirname "$0")/gather-data.sh" "${result_dir_base}-cpu" futhark-c '' '' "$benchmark_programs"

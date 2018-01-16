@@ -43,10 +43,11 @@ attributes = (
      'milliseconds', ('datasets',
                       lambda d: d['average_runtime']),
      percentage_format),
-    # ('average peak memory usage',
-    #  'kilobytes', ('datasets',
-    #            lambda d: np.mean(list(d['peak_memory_usages'].values()))),
-    #  percentage_format),
+    ('average peak memory usage',
+     'bytes', ('datasets',
+               lambda d: d['peak_memory_usage']),
+#               lambda d: np.mean(list(d['peak_memory_usages'].values()))),
+     percentage_format),
     # ('total cumulative allocations',
     #  'kilobytes', ('datasets',
     #            lambda d: d['total_cumulative_allocations']),
@@ -55,6 +56,7 @@ attributes = (
     #  'kilobytes', ('datasets',
     #            lambda d: d['total_cumulative_frees']),
     #  percentage_format),
+
     # ('number of coalescings',
     #  'amount', ('compilation',
     #             lambda d: len(list(set(xs[2] for xs in d

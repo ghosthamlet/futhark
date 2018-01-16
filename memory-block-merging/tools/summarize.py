@@ -82,7 +82,7 @@ with open(os.path.join(data_dir, 'summary.html'), 'w') as sys.stdout:
         print('<a name="{}"></h2>'.format(benchmark_name))
         print('<h2>{}</h2>'.format(benchmark_name))
 
-        for name, _unit, val_func in attributes:
+        for name, _unit, val_func, kind_format in attributes:
             imp = average_improvement(benchmark_info, val_func)
             if abs(imp) > improvement_difference_threshold_ignore:
                 print('<p>Average improvement in {} after enabling both memory block merging passes: {} (<a href="plots/{}-{}.pdf">see plot</a>)</p>'.format(
@@ -96,10 +96,10 @@ with open(os.path.join(data_dir, 'summary.html'), 'w') as sys.stdout:
                 print('<p>{}: <pre>{}</pre></p>'.format(
                     k.replace('-', ' ').replace('_', ', '), v))
 
-            for name, _unit, val_func in attributes:
+            for name, _unit, val_func, kind_format in attributes:
                 (kind, f) = val_func
                 if kind == 'datasets':
-                    imp = base_improvement(dataset_info, f)
+                    imp = base_improvement(dataset_info, f, 'percentage')
                     if abs(imp) > improvement_difference_threshold_ignore:
                         print('<p>Improvement in {}: {}</p>'.format(
                             name, percentage_format(imp)))
