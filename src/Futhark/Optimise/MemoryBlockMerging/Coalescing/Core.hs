@@ -424,7 +424,7 @@ tryCoalesce dst ixfun_slices bindage src offset = do
         denotes_existential <- S.member src_local <$> asks ctxExistentials
         is_if <- isIfExp src_local
         dst_memloc <-
-          if denotes_existential && (not is_if)
+          if denotes_existential && not is_if
           then do
             -- Only use the new index function.  Keep the existential memory
             -- block.  This means we have to make fewer changes to the program.
@@ -649,7 +649,7 @@ safetyIf src dst = do
         -- its branch results.
         [Exp nctx nthpat (If _ body0 body1 _)] ->
           let results_from_outer = S.fromList $ mapMaybe fromVar
-                                   $ concatMap (\body -> drop nctx $ bodyResult body)
+                                   $ concatMap (drop nctx . bodyResult)
                                    $ filter (null . bodyStms) [body0, body1]
 
               resultCreatedInside body se = fromMaybe False $ do
@@ -714,6 +714,6 @@ safetyIf src dst = do
                    ++ " (is in if: " ++ show is_in_if ++ ")"
                  , "res general: " ++ show res_general
                  , "res current: " ++ show res_current
-                 , "res safe: " ++ show res                 
+                 , "res safe: " ++ show res
                  ]
   withDebug debug $ return res

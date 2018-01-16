@@ -361,7 +361,7 @@ extendActualVarsInKernel e arrs = forM_ arrs $ \var -> do
                            , pretty var
                            , pretty var'
                            , prettySet body_vars
-                           , show $ dbg_body_vars_mems
+                           , show dbg_body_vars_mems
                            , prettySet body_vars'
                            ]
       withDebug debug $ recordActuals var' actuals

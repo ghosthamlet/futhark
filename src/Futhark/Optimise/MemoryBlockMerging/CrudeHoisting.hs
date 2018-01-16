@@ -1,4 +1,8 @@
 -- | Hoist variables as much as possible.
+--
+-- FIXME: Find a better name.  The "hoisting" happening here is really just
+-- moving statements upwards *within* a body, i.e. no hoisting out of loop
+-- bodies or anything like that.
 module Futhark.Optimise.MemoryBlockMerging.CrudeHoisting
   ( hoistInFunDef
   ) where

@@ -201,7 +201,7 @@ lookInStm (Let (Pattern _patctxelems patvalelems) _ e) = do
       _ -> return ()
 
   -- Then find the new memory blocks.
-  let e_free_vars = freeInExp e `S.difference` (S.fromList $ freeExcludes e)
+  let e_free_vars = freeInExp e `S.difference` S.fromList (freeExcludes e)
   e_mems <- S.unions <$> mapM varMems (S.toList e_free_vars)
 
   mem_aliases <- asks ctxMemAliases
@@ -304,7 +304,7 @@ freeExcludes e = case e of
     -- FIXME: This can end up doing something wrong if the returned memory
     -- block-associated mergevalparams do not come directly from a Scratch
     -- creation.
-    mapMaybe fromVar $ map snd mergevalparams
+    mapMaybe (fromVar . snd) mergevalparams
 
   BasicOp (Update orig _ _) ->
     [orig]

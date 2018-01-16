@@ -77,13 +77,13 @@ transformFunDefBodyResult ses = do
   var_to_mem_orig <- asks ctxVarToMemOrig
   mem_to_size <- asks ctxAllocSizes
   mem_to_size_orig <- asks ctxAllocSizesOrig
-  
+
   let check se
         | Var v <- se
         , Just orig <- M.lookup v var_to_mem_orig
         , Just new <- memLocName <$> M.lookup v var_to_mem
-        = [(Var orig, (Var new, []))] ++ case (fst <$> M.lookup orig mem_to_size_orig,
-                                         fst <$> M.lookup new mem_to_size) of
+        = (Var orig, (Var new, [])) : case (fst <$> M.lookup orig mem_to_size_orig,
+                                            fst <$> M.lookup new mem_to_size) of
             (Just size_orig, Just size_new) ->
               [(size_orig, (size_new, [Var orig]))]
             _ -> []
@@ -100,7 +100,7 @@ transformFunDefBodyResult ses = do
       mem_orig_to_new2 = concatMap check_size_only ses
       mem_orig_to_new = mem_orig_to_new1 ++ mem_orig_to_new2
 
-  let debug = do
+  let debug =
         putBlock [ "memory updater"
                  , show var_to_mem
                  , show var_to_mem_orig
@@ -113,12 +113,12 @@ transformFunDefBodyResult ses = do
   withDebug debug $ return $ zipWith (
     \se ts -> fromMaybe se (do
                                (se', reqts) <- se `L.lookup` mem_orig_to_new
-                               if (reqts == take (length reqts) ts)
+                               if reqts == take (length reqts) ts
                                  then return se'
                                  else Nothing
                            )
     ) ses (L.tail $ L.tails ses)
-                             
+
 transformBody :: LoreConstraints lore =>
                        Body lore -> FindM lore (Body lore)
 transformBody (Body () bnds res) = do

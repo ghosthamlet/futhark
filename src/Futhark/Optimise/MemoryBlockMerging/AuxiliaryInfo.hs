@@ -5,7 +5,6 @@ module Futhark.Optimise.MemoryBlockMerging.AuxiliaryInfo where
 
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
-import Control.Monad
 
 import Futhark.Representation.AST
 import Futhark.Representation.ExplicitMemory (ExplicitMemory)

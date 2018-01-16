@@ -227,7 +227,7 @@ lookInStm stm@(Let (Pattern _patctxelems patvalelems) _ e)
                      , show stm
                      , "current live: " ++ prettySet current
                      , "stm mems: " ++ prettySet stm_mems
-                     , if (L.null stm_exceptions)
+                     , if L.null stm_exceptions
                        then ""
                        else "exceptions: " ++ show stm_exceptions
                      , "interferences': "
