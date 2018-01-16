@@ -90,8 +90,8 @@ boundInKernelSpace space =
                       ++ mapMaybe (fromVar . (\(_, _, _, x) -> x)) ts
                  ))
 
--- FIXME: The results of this should maybe go in the core 'freeIn' function, and
--- not in this arbitrary module.
+-- FIXME: The results of this should maybe go in the core 'freeIn' function, or
+-- perhaps the ExplicitMemory module, instead of this arbitrary module.
 boundInExpExtra :: Exp ExplicitMemory -> Names
 boundInExpExtra = execWriter . inExp
   where inExp :: Exp ExplicitMemory -> Writer Names ()
@@ -236,7 +236,8 @@ moveLetUpwards letname body = do
         -- restrict the aggressive hoister to *stop* and not hoist loops and
         -- kernels, as hoisting these expressions might actually make a
         -- hoisting-dependent optimisation *poorer* because of some assumptions
-        -- about the structure.  FIXME: Do this nicer.
+        -- about the structure.  FIXME: Do this nicer in a way where it is easy
+        -- to argue for it.
         DoLoop{} -> return body
         Op ExpMem.Inner{} -> return body
         _ -> do

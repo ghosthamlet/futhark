@@ -486,7 +486,8 @@ handleNewArray x xmem = do
         kmem_size <- (fromJust "should be a var" . fromVar) <$> lookupSize kmem
 
         return $ case (S.toList used_mems, first_usess) of
-          -- We only support the basic case for now.  FIXME.
+          -- We only support the basic case for now.  FIXME (or, at the very
+          -- least, manage to create a program where this will have an effect).
           --
           -- A used_mems list of size > 1 means that kmem has already been
           -- reused.  This is okay, but a bit harder to keep track of.
@@ -714,7 +715,7 @@ ixFunHasIndex ixfun = case ixfun of
 -- relative to the beginning of their respective memory blocks?  FIXME: This can
 -- be less conservative, for example by handling that different reshapes of the
 -- same array can describe the same offset and space, but do we have any tests
--- or benchmarks where this occurs?
+-- or benchmarks where that occurs?
 ixFunsCompatible :: (Eq v, Show v) =>
                     (MName, IxFun.IxFun (PrimExp v)) -> (MName, IxFun.IxFun (PrimExp v)) ->
                     Bool

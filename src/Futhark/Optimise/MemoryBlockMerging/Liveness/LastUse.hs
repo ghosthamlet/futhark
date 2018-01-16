@@ -305,6 +305,8 @@ freeExcludes e = case e of
     -- block-associated mergevalparams do not come directly from a Scratch
     -- creation.
     mapMaybe fromVar $ map snd mergevalparams
+
   BasicOp (Update orig _ _) ->
     [orig]
+
   _ -> []

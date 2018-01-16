@@ -424,11 +424,15 @@ tryCoalesce dst ixfun_slices bindage src offset = do
         denotes_existential <- S.member src_local <$> asks ctxExistentials
         is_if <- isIfExp src_local
         dst_memloc <-
-          -- FIXME: Alright???
           if denotes_existential && (not is_if)
           then do
             -- Only use the new index function.  Keep the existential memory
-            -- block.
+            -- block.  This means we have to make fewer changes to the program.
+            --
+            -- FIXME: However, if we are at an If expression with an existential
+            -- memory block, we ignore it.  This is due to some special handling
+            -- of If in MemoryUpdater, which is again due to branches having
+            -- explicit return types.  This might not be correct.
             mem_src <- lookupVarMem src_local
             return $ MemoryLoc (memSrcName mem_src) ixfun_local
           else

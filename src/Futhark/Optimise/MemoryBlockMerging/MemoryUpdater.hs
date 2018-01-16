@@ -153,7 +153,9 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
             map (flip M.lookup var_to_mem <=< fromVar)
             $ drop (length patctxelems) $ bodyResult body
 
-          -- FIXME: Necessary?  Apparently so.
+          -- FIXME: This is a mess.  We try to "reverse-engineer" the origin of
+          -- how the If results came to look as they do, so that we can produce
+          -- a correct IfAttr.
           findBodyResMem i body_results =
             let imem = patElemName (patctxelems L.!! i)
                 matching_var = mapMaybe (
@@ -195,10 +197,6 @@ transformStm (Let (Pattern patctxelems patvalelems) aux e) = do
                                       transformMemInfo r m'
                          ) rets ms_then
             else rets
-
-            -- error ("FIXME: Niels doesn't know how to handle this (if it can even occur)\n" ++
-            --            "ms then: " ++ show ms_then ++ "\n" ++
-            --            "ms else: " ++ show ms_else)
 
       let debug = putBlock [ "ifattr rets: " ++ show rets
                            , "ifattr rets_new: " ++ show rets_new
