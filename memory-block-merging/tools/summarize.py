@@ -50,7 +50,7 @@ with open(os.path.join(data_dir, 'summary.html'), 'w') as sys.stdout:
     print('<p>Raw results: <a href="full.json">full.json</a>.</p>')
     print('<h2>Table of contents</h2>')
     print('<ul>')
-    for name, _unit, _val_func in attributes:
+    for name, _unit, _val_func, _kind_format in attributes:
         url = 'sorted_after_' + name.replace(' ', '_')
         title = 'Sorted after ' + name + ' improvement'
         print('<li><a href="#{}">{}</a></li>'.format(url, title))
@@ -62,7 +62,7 @@ with open(os.path.join(data_dir, 'summary.html'), 'w') as sys.stdout:
     print('</ul>')
     print('</ul>')
 
-    for name, _unit, val_func in attributes:
+    for name, _unit, val_func, _kind_format in attributes:
         key_func = lambda i: average_improvement(i, val_func)
         temp = list(map(lambda b: (b[0], key_func(b[1])), benchmarks))
         temp.sort(key=lambda t: t[1], reverse=True)

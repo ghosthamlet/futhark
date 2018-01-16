@@ -57,34 +57,34 @@ stack install
 # Assumes your futhark-benchmarks directory is next to your futhark directory.
 cd "../futhark-benchmarks/"
 
-get_compilation_info() {
-    if [ "$compiler" = 'futhark-c' ]; then
-        target_flag='--cpu'
-    else
-        target_flag='--gpu'
-    fi
+# get_compilation_info() {
+#     if [ "$compiler" = 'futhark-c' ]; then
+#         target_flag='--cpu'
+#     else
+#         target_flag='--gpu'
+#     fi
 
-    {
-        export FUTHARK_DEBUG_JSON=1
-        temp_storage="$(mktemp)"
-        echo '{'
-        find -name '*.fut' | while read file; do
-            echo "Getting compilation information for $file." > /dev/stderr
-            futhark $target_flag $file 2> /dev/null > "$temp_storage" && \
-                {
-                    echo ','
-                    echo '"'"$file"'":'
-                    echo '['
-                    cat "$temp_storage" | while read line; do
-                        echo ','
-                        echo "$line"
-                    done | tail -n +2 # Requires GNU tail.
-                    echo ']'
-                } || true
-        done | tail -n +2
-        echo '}'
-    }
-}
+#     {
+#         export FUTHARK_DEBUG_JSON=1
+#         temp_storage="$(mktemp)"
+#         echo '{'
+#         find -name '*.fut' | while read file; do
+#             echo "Getting compilation information for $file." > /dev/stderr
+#             futhark $target_flag $file 2> /dev/null > "$temp_storage" && \
+#                 {
+#                     echo ','
+#                     echo '"'"$file"'":'
+#                     echo '['
+#                     cat "$temp_storage" | while read line; do
+#                         echo ','
+#                         echo "$line"
+#                     done | tail -n +2 # Requires GNU tail.
+#                     echo ']'
+#                 } || true
+#         done | tail -n +2
+#         echo '}'
+#     }
+# }
 
 mkdir "$base"
 base="$base/runs"

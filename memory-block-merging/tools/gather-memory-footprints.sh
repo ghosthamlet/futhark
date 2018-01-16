@@ -11,6 +11,8 @@ if ! [ "$result_dir_base" ]; then
     exit 1
 fi
 
-"$(dirname "$0")/gather-data-coarse.sh" "${result_dir_base}-cpu" futhark-c '' 1
+benchmark_programs="$2"
 
-"$(dirname "$0")/gather-data-coarse.sh" "${result_dir_base}-gpu" futhark-opencl '' 1
+"$(dirname "$0")/gather-data.sh" "${result_dir_base}-gpu" futhark-opencl '' 1 "$benchmark_programs"
+
+"$(dirname "$0")/gather-data.sh" "${result_dir_base}-cpu" futhark-c '' 1 "$benchmark_programs"

@@ -1,6 +1,7 @@
 #!/bin/sh
 #
-# Focus only on getting runtime.  Gathers both CPU and GPU data.
+# Focus on getting good runtime data (will also get memory footprint).  Gathers
+# both CPU and GPU data.
 
 set -ex # Exit on first error, be verbose.
 
@@ -13,6 +14,7 @@ fi
 cpu_benchmarks_file="$2"
 gpu_benchmarks_file="$3"
 
-#"$(dirname "$0")/gather-data-coarse.sh" "${result_dir_base}-cpu" futhark-c '' '' "$cpu_benchmarks_file"
+"$(dirname "$0")/gather-data.sh" "${result_dir_base}-gpu" futhark-opencl '' '' "$gpu_benchmarks_file"
 
-"$(dirname "$0")/gather-data-coarse.sh" "${result_dir_base}-gpu" futhark-opencl '' '' "$gpu_benchmarks_file"
+# This will take a longer time.
+"$(dirname "$0")/gather-data.sh" "${result_dir_base}-cpu" futhark-c '' '' "$cpu_benchmarks_file"
