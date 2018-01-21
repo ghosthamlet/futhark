@@ -398,26 +398,21 @@ instance MonadTypeChecker TypeM where
       Just (BoundV _ t)
         | "_" `isPrefixOf` pretty name -> throwError $ UnderscoreUse loc qn
         | otherwise -> do
-            r <- getType loc t
-            case r of Left{} -> throwError $ FunctionIsNotValue loc qn
-                      Right t' -> return (qn', removeShapeAnnotations $ fromStruct $
-                                           qualifyTypeVars outer_env mempty qs t')
+            case getType t of
+              Left{} -> throwError $ FunctionIsNotValue loc qn
+              Right t' -> return (qn', removeShapeAnnotations $ fromStruct $
+                                   qualifyTypeVars outer_env mempty qs t')
 
 -- | Extract from a type either a function type comprising a list of
--- parameter types and a return type (all of which must be
--- first-order), or a first-order type.
-getType :: MonadTypeChecker m =>
-           SrcLoc -> TypeBase dim as
-        -> m (Either ([(Maybe VName, TypeBase dim as)], TypeBase dim as)
-                     (TypeBase dim as))
-getType loc (Arrow _ v t1 t2) = do
-  t1' <- getType loc t1
-  t2' <- getType loc t2
-  case (t1', t2') of
-    (Left _, _) -> throwError $ TypeError loc "Higher-order functions are not supported yet."
-    (Right t1'', Left (ps, r)) -> return $ Left ((v,t1'') : ps, r)
-    (Right t1'', Right t2'') -> return $ Left ([(v,t1'')], t2'')
-getType _ t = return $ Right t
+-- parameter types and a return type, or a first-order type.
+getType :: TypeBase dim as
+        -> (Either ([(Maybe VName, TypeBase dim as)], TypeBase dim as)
+                   (TypeBase dim as))
+getType (Arrow _ v t1 t2) =
+  case getType t2 of
+    Left (ps, r) -> Left ((v, t1) : ps, r)
+    Right _ -> Left ([(v, t1)], t2)
+getType t = Right t
 
 checkQualNameWithEnv :: Namespace -> QualName Name -> SrcLoc -> TypeM (Env, QualName VName)
 checkQualNameWithEnv space qn@(QualName quals name) loc = do

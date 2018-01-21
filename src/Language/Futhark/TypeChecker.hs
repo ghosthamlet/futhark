@@ -132,7 +132,7 @@ checkSpecs (ValSpec name tparams vtype doc loc : specs) =
       checkTypeParams tparams $ \tparams' -> bindingTypeParams tparams' $ do
         vtype' <- checkTypeDecl vtype
         return (tparams', vtype')
-    rettype'' <- getType (srclocOf rettype') $ unInfo $ expandedType rettype'
+    let rettype'' = getType $ unInfo $ expandedType rettype'
     binding <- case rettype'' of
                  Left (params, rt) ->
                    return $ BoundV tparams' $ foldr (uncurry $ Arrow ()) rt params
@@ -416,8 +416,7 @@ checkTypeBind (TypeBind name ps td doc loc) =
     td' <- bindingTypeParams ps' $ checkTypeDecl td
     bindSpaced [(Type, name)] $ do
       name' <- checkName Type name loc
-      r <- getType loc $ unInfo $ expandedType td'
-      case r of
+      case getType $ unInfo $ expandedType td' of
         Left _ -> throwError $ TypeError loc
                   "Function types are not permitted in type abbreviations."
         Right _ -> return ()

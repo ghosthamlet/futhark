@@ -327,11 +327,6 @@ checkPattern' (RecordPattern fs loc) NoneInferred =
 checkPattern' fullp@(PatternAscription p (TypeDecl t NoInfo)) maybe_outer_t = do
   (t', st) <- checkTypeExp t
 
-  r <- getType (srclocOf fullp) st
-  case r of
-    Left _ -> throwError $ TypeError (srclocOf fullp) "Cannot bind a function in a pattern."
-    Right _ -> return ()
-
   let maybe_outer_t' = case maybe_outer_t of
                          Inferred outer_t -> Just $ vacuousShapeAnnotations outer_t
                          Ascribed outer_t -> Just outer_t
@@ -522,6 +517,8 @@ instantiatePolymorphic tnames loc orig_substs x y =
           instantiateArrayElemType et arg_t'
     instantiate (Prim pt) (Prim p_pt)
       | pt == p_pt = return ()
+    instantiate (Arrow () _ t1 t2) (Arrow () _ t1' t2') =
+      instantiate t1 t1' >> instantiate t2 t2'
     instantiate _ _ =
       lift $ Left Nothing
 

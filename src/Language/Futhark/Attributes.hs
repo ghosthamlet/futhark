@@ -419,7 +419,8 @@ typeOf (If _ _ _ (Info t) _) = t
 typeOf (Var _ (Info (_, Record ets)) _) = Record ets
 typeOf (Var qn (Info (_, t)) _) = t `addAliases` S.insert (qualLeaf qn)
 typeOf (Ascript e _ _) = typeOf e
-typeOf (Apply _ _ _ (Info (_, t)) _) = t
+typeOf (Apply _ _ _ (Info (ts, ret)) _) =
+  foldr (Arrow mempty Nothing . removeShapeAnnotations . fromStruct) ret ts
 typeOf (Negate e _) = typeOf e
 typeOf (LetPat _ _ _ body _) = typeOf body
 typeOf (LetFun _ _ body _) = typeOf body
@@ -549,7 +550,7 @@ patternStructType (TuplePattern ps _) = tupleRecord $ map patternStructType ps
 patternStructType (RecordPattern fs _) = Record $ patternStructType <$> M.fromList fs
 patternStructType (Wildcard (Info t) _) = vacuousShapeAnnotations $ toStruct t
 
--- | When viewed as a function parameter, this this pattern correspond
+-- | When viewed as a function parameter, does this pattern correspond
 -- to a named parameter of some type?
 patternParam :: PatternBase Info VName -> (Maybe VName, StructType)
 patternParam (PatternParens p _) =

@@ -214,7 +214,6 @@ instance MonadTypeChecker TermTypeM where
     (scope, qn'@(QualName qs name)) <- checkQualNameWithEnv Term qn loc
     case M.lookup name $ scopeVtable scope of
       Nothing -> throwError $ UnknownVariableError Term qn loc
-      Just (BoundV _ Arrow{}) -> throwError $ FunctionIsNotValue loc qn
       Just (BoundV _ t) | "_" `isPrefixOf` pretty name -> throwError $ UnderscoreUse loc qn
                         | otherwise -> return (qn', qualifyTypeVars outer_env [] qs $
                                                     removeShapeAnnotations t)
@@ -918,9 +917,16 @@ checkExp (Concat i arr1exp arr2exps loc) = do
           | otherwise = return ()
           where t = typeOf e
 
-checkExp e@Lambda{} =
-  throwError $ TypeError (srclocOf e)
-  "Lambda expressions are only permitted directly in applications."
+checkExp (Lambda tparams params body maybe_retdecl NoInfo loc) =
+  bindingPatternGroup tparams (zip params $ repeat NoneInferred) $ \tparams' params' -> do
+    maybe_retdecl' <- traverse checkTypeDecl maybe_retdecl
+    body' <- checkFunBody (nameFromString "<anonymous>") body
+                          (unInfo . expandedType <$> maybe_retdecl') loc
+    (maybe_retdecl'', rettype) <- case maybe_retdecl' of
+      Just retdecl'@(TypeDecl _ (Info st)) -> return (Just retdecl', st)
+      Nothing -> return (Nothing, vacuousShapeAnnotations . toStruct $ typeOf body')
+    let ftype = foldr (uncurry (Arrow ()) . patternParam) rettype params'
+    return $ Lambda tparams' params' body' maybe_retdecl'' (Info ftype) loc
 
 checkExp e@OpSection{} =
   throwError $ TypeError (srclocOf e)
@@ -1150,7 +1156,7 @@ instantiatePolymorphicFunction :: MonadTypeChecker m =>
                                -> ([TypeParam], PatternType) -> [Arg]
                                -> m (Occurences, [(Maybe VName,StructType)], StructType)
 instantiatePolymorphicFunction maybe_fname call_loc (tparams, ftype) args = do
-  (pts, ret) <- either pure (const nope) =<< getType call_loc ftype
+  (pts, ret) <- either pure (const nope) $ getType ftype
 
   unless (length pts == length args) $
     throwError $ TypeError call_loc $ prefix $
