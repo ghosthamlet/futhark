@@ -417,7 +417,9 @@ typeOf (BinOp _ _ _ (Info t) _) = t
 typeOf (Project _ _ (Info t) _) = t
 typeOf (If _ _ _ (Info t) _) = t
 typeOf (Var _ (Info (_, Record ets)) _) = Record ets
-typeOf (Var qn (Info (_, t)) _) = t `addAliases` S.insert (qualLeaf qn)
+typeOf (Var qn (Info (ts, ret)) _) =
+  foldr (Arrow mempty Nothing . removeShapeAnnotations . fromStruct) ret ts
+  `addAliases` S.insert (qualLeaf qn)
 typeOf (Ascript e _ _) = typeOf e
 typeOf (Apply _ _ _ (Info (ts, ret)) _) =
   foldr (Arrow mempty Nothing . removeShapeAnnotations . fromStruct) ret ts

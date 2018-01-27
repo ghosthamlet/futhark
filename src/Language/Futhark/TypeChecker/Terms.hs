@@ -644,17 +644,26 @@ checkExp (Negate arg loc) = do
   arg' <- require anyNumberType =<< checkExp arg
   return $ Negate arg' loc
 
--- HACK: We fake the types and such on applications quite severely,
--- because Futhark does not have the capacity to express higher-order
--- types.  All type annotations simply become the final (first-order)
--- result of the application.
-checkExp e@Apply{} = do
-  (fname, args) <- findFuncall e
-  (args', argflows) <- unzip <$> mapM checkArg args
-  (fname', ftype) <- lookupFunction fname (map argType argflows) loc
-  (paramtypes, rettype) <- checkFuncall (Just fname) loc ftype argflows
-  constructFuncall loc fname' args' paramtypes rettype
-  where loc = srclocOf e
+checkExp e@(Apply e1 e2 NoInfo NoInfo loc) = do
+  maybe_funcall <- (Just <$> findFuncall e)
+                   `catchError` (return . const Nothing)
+  case maybe_funcall of
+    Just (fname, args) -> do
+      (args', argflows) <- unzip <$> mapM checkArg args
+      (fname', ftype) <- lookupFunction fname (map argType argflows) loc
+      (paramtypes, rettype) <- checkFuncall (Just fname) loc ftype argflows
+      constructFuncall loc fname' args' paramtypes rettype
+    Nothing -> do
+      e1' <- checkExp e1
+      (e2', arg) <- checkArg e2
+      (paramtypes, rettype) <- checkFuncall Nothing loc
+                               ([], vacuousShapeAnnotations $ typeOf e1') [arg]
+      let rettype' = removeShapeAnnotations rettype
+      case paramtypes of
+        (t2 : pts) -> return $ Apply e1' e2' (Info $ diet t2)
+                                             (Info (pts, rettype')) loc
+        _ -> fail $ "Internal type checker error: checkFuncall returned "
+                 ++ "empty list of parameter types in case for apply."
 
 checkExp (LetPat tparams pat e body pos) = do
   noTypeParamsPermitted tparams
@@ -1106,8 +1115,13 @@ sequentially m1 m2 = do
 findFuncall :: UncheckedExp -> TermTypeM (QualName Name, [UncheckedExp])
 findFuncall (Parens e _) =
   findFuncall e
-findFuncall (Var fname _ _) =
-  return (fname, [])
+findFuncall (Var fname _ loc) = do
+  -- Check that the name is known, since it may actually be a record
+  -- projection rather than a function name.
+  (scope, QualName _ name) <- checkQualNameWithEnv Term fname loc
+  case M.lookup name $ scopeVtable scope of
+    Nothing -> throwError $ UnknownVariableError Term fname loc
+    _ -> return (fname, [])
 findFuncall (Apply f arg _ _ _) = do
   (fname, args) <- findFuncall f
   return (fname, args ++ [arg])
@@ -1158,7 +1172,7 @@ instantiatePolymorphicFunction :: MonadTypeChecker m =>
 instantiatePolymorphicFunction maybe_fname call_loc (tparams, ftype) args = do
   (pts, ret) <- either pure (const nope) $ getType ftype
 
-  unless (length pts == length args) $
+  unless (length args <= length pts) $
     throwError $ TypeError call_loc $ prefix $
     "expecting " ++ pretty (length pts) ++ " arguments, but got " ++
     pretty (length args) ++ " arguments."
