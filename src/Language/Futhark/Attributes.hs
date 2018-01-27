@@ -38,6 +38,7 @@ module Language.Futhark.Attributes
   , nestedDims
   , returnType
   , concreteType
+  , order
 
   -- * Operations on types
   , rank
@@ -524,6 +525,15 @@ concreteType (Array at _ _) = concreteArrayType at
 
         concreteRecordArrayElem (RecordArrayElem et) = concreteArrayType et
         concreteRecordArrayElem (RecordArrayArrayElem et _ _) = concreteArrayType et
+
+-- | Return the order of a type. Primitive types and arrays have order 0,
+-- while types containing function types have order at least 1.
+order :: TypeBase dim as -> Int
+order (Prim _)          = 0
+order Array{}           = 0
+order (Record fs)       = M.foldl' (flip $ max . order) 0 fs
+order TypeVar{}         = 0
+order (Arrow _ _ t1 t2) = order t1 + 1 `max` order t2
 
 -- | The set of identifiers bound in a pattern.
 patIdentSet :: (Functor f, Ord vn) => PatternBase f vn -> S.Set (IdentBase f vn)

@@ -590,12 +590,15 @@ checkExp (Project k e NoInfo loc) = do
                 return $ Project k e' (Info t) loc
     _ -> throwError $ InvalidField loc (typeOf e') (pretty k)
 
-checkExp (If e1 e2 e3 _ pos) =
+checkExp (If e1 e2 e3 _ loc) =
   sequentially (require [Prim Bool] =<< checkExp e1) $ \e1' _ -> do
   ((e2', e3'), dflow) <- tapOccurences $ checkExp e2 `alternative` checkExp e3
   brancht <- unifyExpTypes e2' e3'
+  unless (order brancht == 0) $
+    throwError $ TypeError loc $ "Branches of conditional have type " ++
+    pretty brancht ++ ", but they are only allowed to have base type."
   let t' = addAliases brancht (`S.difference` allConsumed dflow)
-  return $ If e1' e2' e3' (Info t') pos
+  return $ If e1' e2' e3' (Info t') loc
 
 checkExp (Parens e loc) =
   Parens <$> checkExp e <*> pure loc
